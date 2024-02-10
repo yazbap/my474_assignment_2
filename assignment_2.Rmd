@@ -8,6 +8,8 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
+## Exercise 1
+
 What is the difference between train and train 2?
 
 - Train 2 has an additional parameter m with the default set to 0.9 which represents the momentum, " a method that helps accelerate SGD by orienting the gradient descent in the relevant direction and reducing oscillations." (hundred page machine learning). It also have the vector v which is a vector initialized to 0 with the number of elements in it being equal to the number of columns in X, which is also equal to the number of coefficients  we have in the model.
@@ -132,7 +134,27 @@ coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
 coef_model <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 ```
 
+## Exercise 2
 
+```{r}
+mystery_function <- function(y, x){
+  #Identify the optimal combination of both λ and f in a principled way
+  
+  #Prints, as separate lines:
+    # The optimal model form
+    # The test loss of the optimal model
+  
+  # Returns the final trained model
+}
+```
+
+## Exercise 3
+
+```{r}
+load("civil_wars.RData")
+
+View(civwars)
+```
 
 This document contains the necessary commands and layout to meet the formatting requirements for MY472. You should use the template.Rmd file as the basis for your own answers to the assigned exercises.
 
