@@ -1,0 +1,183 @@
+---
+title: "Assignment #2"
+date: "February 26, 2024"
+output: html_document
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+What is the difference between train and train 2?
+
+- Train 2 has an additional parameter m with the default set to 0.9 which represents the momentum, " a method that helps accelerate SGD by orienting the gradient descent in the relevant direction and reducing oscillations." (hundred page machine learning). It also have the vector v which is a vector initialized to 0 with the number of elements in it being equal to the number of columns in X, which is also equal to the number of coefficients  we have in the model.
+
+When updating the coefficients train 2 adds m times the kth element of v to the SGD algorithm we already had in `train.`
+
+How might this affect the performance of the algorithm?
+
+- The impact of this addition is  This expression scales the current value of the k-th element of the momentum vector v by the scalar m. It effectively adjusts the contribution of the previous momentum to the current update. If m is close to 1, the previous momentum has a strong influence on the current update. If m is closer to 0, the influence of the previous momentum is reduced.
+
+In momentum optimization algorithms, this scaling operation helps to maintain and adjust the momentum accumulated in previous iterations. It allows the optimizer to continue moving in the direction of previous updates while adapting the magnitude of the update based on the momentum coefficient m.
+
+
+```{r train}
+train <- function(X, y, l_rate, epochs) {
+  coefs <- rep(0, ncol(X))
+  
+  for (b in 1:epochs) {
+    for (i in sample(1:nrow(X))) { # sampling the indices shuffles the order
+      row_vec <- as.numeric(X[i,]) # make row easier to handle
+      
+      yhat_i <- predict_row(row_vec, coefficients = coefs)
+      
+      # for each coefficient, apply update using partial derivative
+      coefs <- sapply(1:length(coefs), function (k) {
+        coefs[k] - l_rate*(yhat_i - y[i])*row_vec[k]
+      }
+      )
+    }
+    
+    # calculate current error
+    yhat <- apply(X, 1, predict_row, coefficients = coefs)
+    MSE_epoch <- MSE(y, yhat)
+    NLL_epoch <- NLL(y, yhat)
+    
+    # report the error to the user
+    message(
+      paste0(
+        "Iteration ", b ,"/",epochs," | NLL = ", round(NLL_epoch,5),"; MSE = ", round(MSE_epoch,5)
+      )
+    )
+    
+  }
+  
+  return(coefs) # output the final estimates
+}
+```
+
+
+```{r train2}
+train2 <- function(X, y, l_rate, m = 0.9, epochs) {
+  
+  coefs <- rep(0, ncol(X)) # initialize coefficients to 0
+  
+  v <- rep(0, ncol(X)) # initialize v to 0
+  
+  for (b in 1:epochs) { # loop over epochs
+    for (i in sample(1:nrow(X))) { # loop over each row randomly
+      
+      row_vec <- as.numeric(X[i,]) # get the row vector
+      
+      yhat_i <- predict_row(row_vec, coefficients = coefs) # predict y for the row
+      
+      for(k in 1:length(coefs)) { # loop over each coefficient
+        
+        v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k] #find partial derivative, multiply by the learning rate, add ...
+        
+        coefs[k] <- coefs[k] - v[k] # update the coefficient
+      }
+    }
+
+    yhat <- apply(X, 1, predict_row, coefficients = coefs)
+    MSE_epoch <- MSE(y, yhat)
+    NLL_epoch <- NLL(y, yhat)
+    
+    message(
+      paste0(
+        "Iteration ", b ,"/",epochs," | NLL = ", round(NLL_epoch,5),"; MSE = ", round(MSE_epoch,5)
+      )
+    )
+    
+  }
+  
+  return(coefs)
+}
+```
+
+```{r}
+set.seed(89)
+
+genX <- function(n) {
+  return(
+    data.frame(X0 = 1,
+               X1 = runif(n,-5,5),
+               X2 = runif(n,-2,2))
+  )
+}
+
+genY <- function(X) {
+  Ylin <- 3*X$X0 + 1*X$X1 - 2*X$X2 + rnorm(nrow(X),0,0.05) 
+  Yp <- 1/(1+exp(-Ylin))
+  Y <- rbinom(nrow(X),1,Yp)
+  return(Y)
+}
+
+predict_row <- function(row, coefficients) {
+  pred_terms <- row*coefficients # get the values of the individual linear terms
+  yhat <- sum(pred_terms) # sum these up (i.e. \beta_0 + \beta_1X_1 + ...
+  return(1/(1+exp(-yhat))) # convert to probabilities
+}
+
+X <- genX(1000)
+y <- genY(X)
+```
+
+
+```{r}
+coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
+```
+
+```{r}
+coef_model <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
+```
+
+
+
+This document contains the necessary commands and layout to meet the formatting requirements for MY472. You should use the template.Rmd file as the basis for your own answers to the assigned exercises.
+
+## Formatting requirements
+
+For clarity, the formatting requirements for each assignment are:
+
+* You must write in **full sentences**, as you would in a report or academic piece of writing
+  
+  * If the exercise requires generating a table or figure, you should include at least one sentence introducing and explaining it. E.g. "Table 1 reports the cross-validation test scores for a grid search of $\lambda$ values in the LASSO model."
+
+* Unless stated otherwise, all code used to answer the exercises should be included as a code appendix at the end of the script. This formatting can be achieved by following the guidance in the template.Rmd file we provide on Moodle
+
+* All code should be annotated with comments, to help the marker understand what you have done
+
+* Your output should be replicable. Any result/table/figure that cannot be traced back to your code will not be marked
+
+## Example of in-line figures without code
+
+We achieve the formatting requirements in two-steps: 
+
+  1) In the `setup` chunk, add `knitr::opts_chunk$set(echo = FALSE)` so that code is not included (echoed) by default in code chunks; 
+  2) Add a specific code chunk at the end of the file to collect and print *all* the code in the Rmarkdown file. You can see this code at the bottom of this template. If you use this template for your assignments, do not delete the final code chunk!
+
+Below, we use a code chunk to generate random data and include a scatter plot in-line. The code used to generate this chart is only reported at the end of the document. 
+
+```{r plot_example}
+set.seed(89) # set a seed for R's psuedo-randomiser, for replicability.
+x <- rnorm(100) # randomly draw 100 obs from normal distribution, save as object
+y <- rnorm(100) 
+plot(x,y) # two-way scatterplot using R's default plotting
+```
+
+In specific instances, however, you may be directed to report your code in-line (or you may want to do this to illustrate a specific point). In these cases, we can override the default behaviour by adding the chunk option `echo = TRUE` to a specific R chunk. When `echo=TRUE`, your code is presented in-line with any output displayed afterwards. The same code will also be included in the appendix at the bottom of the document (which is fine).
+
+```{r echo_example, echo=TRUE}
+# {[language] [chunk_name], [chunk_options]}
+# here we use echo=TRUE to override our global options and make the chunk appear exactly here. 
+
+print("This code chunk is visible in this section.")
+```
+
+## Appendix: All code in this assignment
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE} 
+# this chunk generates the complete code appendix. 
+# eval=FALSE tells R not to run (``evaluate'') the code here (it was already run before).
+```
