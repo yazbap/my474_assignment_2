@@ -12,88 +12,111 @@ knitr::opts_chunk$set(echo = FALSE)
 
 What is the difference between train and train 2?
 
-- Train 2 has an additional parameter m with the default set to 0.9 which represents the momentum, " a method that helps accelerate SGD by orienting the gradient descent in the relevant direction and reducing oscillations." (hundred page machine learning). It also have the vector v which is a vector initialized to 0 with the number of elements in it being equal to the number of columns in X, which is also equal to the number of coefficients  we have in the model.
-
-When updating the coefficients train 2 adds m times the kth element of v to the SGD algorithm we already had in `train.`
+- Train 2 has an additional parameter `m` with the default set to 0.9. It also contains an additional vector `v` which has the same number of elements as coefficients in the model. These additional features turns this into a stochastic gradient descent with momentum algorithm. In these types of algorithms, the `v` vector stores the history of the magnitude of the parameter update equation for the kth coefficient which is done on the line `v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k]`. The `m` parameter controls how much weight previous updates have on the current update. In this case, a value of 0.9 means that previous updates has a strong influence on the current update. 
 
 How might this affect the performance of the algorithm?
 
-- The impact of this addition is  This expression scales the current value of the k-th element of the momentum vector v by the scalar m. It effectively adjusts the contribution of the previous momentum to the current update. If m is close to 1, the previous momentum has a strong influence on the current update. If m is closer to 0, the influence of the previous momentum is reduced.
+To understand why adding momentum may be necessary, we first have to understand potential issues that can come up with SGD. A problem with SGD is that the progression toward the minima can move in inappropriate directions depending on the points sampled during the search which can can slow down progress. Adding previous update values as a factor can increase or decrease the magnitude of the next step and guide its direction. This can result in fewer steps reaching the minima. Momentum is helpful in cases where:
 
-In momentum optimization algorithms, this scaling operation helps to maintain and adjust the momentum accumulated in previous iterations. It allows the optimizer to continue moving in the direction of previous updates while adapting the magnitude of the update based on the momentum coefficient m.
+- the objective function has a lot of curvature meaning that the gradient may change a lot over small regions of the search space as the momentum will guide the algorithm with greater velocity toward the minima
 
+- the gradient has a high variance as the momentum will provide more context on where the algorithm should go
+
+- when the search space is flat or nearly flat as the momentum allows the search to progress in the same direction as before the flat spot and helpfully cross the flat region.
+
+Demonstrate your argument by including a coded example, comparing this algorithm, and point to elements of the output that help illustrate your answer.
+
+As shown in the plots for train_1, the algorithm we made in class and train_2, the algorithm given in this assignment, the second has more erratic behavior, while the former has a smoother line around the final MSE and NLL.
+
+Critique the function more generally. What are some of the general constraints or limitations of the implementation? Are there any ways you could improve it further?
 
 ```{r train}
+# Define the train function
 train <- function(X, y, l_rate, epochs) {
   coefs <- rep(0, ncol(X))
+  MSE_list <- vector("numeric", length = epochs)  # List to store MSE for each epoch
+  NLL_list <- vector("numeric", length = epochs)  # List to store NLL for each epoch
   
   for (b in 1:epochs) {
-    for (i in sample(1:nrow(X))) { # sampling the indices shuffles the order
-      row_vec <- as.numeric(X[i,]) # make row easier to handle
+    for (i in sample(1:nrow(X))) { 
+      row_vec <- as.numeric(X[i,])
       
       yhat_i <- predict_row(row_vec, coefficients = coefs)
       
-      # for each coefficient, apply update using partial derivative
+      # Update coefficients using gradient descent
       coefs <- sapply(1:length(coefs), function (k) {
-        coefs[k] - l_rate*(yhat_i - y[i])*row_vec[k]
-      }
-      )
+        coefs[k] - l_rate * (yhat_i - y[i]) * row_vec[k]
+      })
     }
     
-    # calculate current error
+    # Calculate current predictions
     yhat <- apply(X, 1, predict_row, coefficients = coefs)
+    
+    # Calculate MSE and NLL
     MSE_epoch <- MSE(y, yhat)
     NLL_epoch <- NLL(y, yhat)
     
-    # report the error to the user
-    message(
-      paste0(
-        "Iteration ", b ,"/",epochs," | NLL = ", round(NLL_epoch,5),"; MSE = ", round(MSE_epoch,5)
-      )
-    )
-    
+    # Store MSE and NLL for this epoch
+    MSE_list[b] <- MSE_epoch
+    NLL_list[b] <- NLL_epoch
   }
   
-  return(coefs) # output the final estimates
+  # Set up the multi-panel layout
+  par(mfrow = c(1, 2))
+  
+  # Plot the MSE and NLL over epochs
+  plot(1:epochs, MSE_list, type = "l", xlab = "Epoch", ylab = "MSE", main = "Train_1 MSE over Epochs")
+  plot(1:epochs, NLL_list, type = "l", xlab = "Epoch", ylab = "NLL", main = "Train_1 NLL over Epochs")
+  
+  return(coefs)  # Output the final estimates
 }
 ```
 
 
 ```{r train2}
+# Define the train function
 train2 <- function(X, y, l_rate, m = 0.9, epochs) {
-  
-  coefs <- rep(0, ncol(X)) # initialize coefficients to 0
-  
+  coefs <- rep(0, ncol(X))
   v <- rep(0, ncol(X)) # initialize v to 0
+  MSE_list <- vector("numeric", length = epochs)  # List to store MSE for each epoch
+  NLL_list <- vector("numeric", length = epochs)  # List to store NLL for each epoch
   
-  for (b in 1:epochs) { # loop over epochs
-    for (i in sample(1:nrow(X))) { # loop over each row randomly
+  for (b in 1:epochs) {
+    for (i in sample(1:nrow(X))) { 
+      row_vec <- as.numeric(X[i,])
       
-      row_vec <- as.numeric(X[i,]) # get the row vector
+      yhat_i <- predict_row(row_vec, coefficients = coefs)
       
-      yhat_i <- predict_row(row_vec, coefficients = coefs) # predict y for the row
-      
-      for(k in 1:length(coefs)) { # loop over each coefficient
+      # Update coefficients using gradient descent
+       for(k in 1:length(coefs)) { # loop over each coefficient
         
-        v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k] #find partial derivative, multiply by the learning rate, add ...
+        v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k] 
         
         coefs[k] <- coefs[k] - v[k] # update the coefficient
       }
     }
-
+    
+    # Calculate current predictions
     yhat <- apply(X, 1, predict_row, coefficients = coefs)
+    
+    # Calculate MSE and NLL
     MSE_epoch <- MSE(y, yhat)
     NLL_epoch <- NLL(y, yhat)
     
-    message(
-      paste0(
-        "Iteration ", b ,"/",epochs," | NLL = ", round(NLL_epoch,5),"; MSE = ", round(MSE_epoch,5)
-      )
-    )
+    # Store MSE and NLL for this epoch
+    MSE_list[b] <- MSE_epoch
+    NLL_list[b] <- NLL_epoch
     
   }
   
-  return(coefs)
+  # Set up the multi-panel layout
+  par(mfrow = c(1, 2))
+  
+  # Plot the MSE and NLL over epochs
+  plot(1:epochs, MSE_list, type = "l", xlab = "Epoch", ylab = "MSE", main = "Train_2 MSE over Epochs")
+  plot(1:epochs, NLL_list, type = "l", xlab = "Epoch", ylab = "NLL", main = "Train_2 NLL over Epochs")
+  
+  return(coefs)  # Output the final estimates
 }
 ```
 
@@ -126,18 +149,22 @@ y <- genY(X)
 ```
 
 
-```{r}
+```{r, echo = TRUE}
 coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
 ```
 
-```{r}
-coef_model <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
+```{r, echo = TRUE}
+coef_model2 <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 ```
+
 
 ## Exercise 2
 
 ```{r}
 mystery_function <- function(y, x){
+  #function form
+  # y = alpha + coefficient*x + lambda*R(f) 
+  
   #Identify the optimal combination of both λ and f in a principled way
   
   #Prints, as separate lines:
@@ -147,6 +174,23 @@ mystery_function <- function(y, x){
   # Returns the final trained model
 }
 ```
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Generate a vector of independent variable (X) with 100 observations
+X <- rnorm(100)
+
+# Generate the dependent variable (y) with a linear relationship to X, adding some random noise
+# Assuming the linear relationship is y = 2*X + 3 + error
+y <- 2*X + 3 + rnorm(100)
+
+# Display the first few elements of X and y
+head(cbind(X, y))
+
+```
+
 
 ## Exercise 3
 
