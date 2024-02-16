@@ -30,6 +30,10 @@ As shown in the plots for train_1, the algorithm we made in class and train_2, t
 
 Critique the function more generally. What are some of the general constraints or limitations of the implementation? Are there any ways you could improve it further?
 
+General constraints
+
+- The amount of the momentum that contributes to the algorithm in each epoch is the same. if we vary how much momentum contributes to the next step, given how much loss was in the last epoch we can have a smoother line toward the appropriate next step.
+
 ```{r train}
 # Define the train function
 train <- function(X, y, l_rate, epochs) {
@@ -160,44 +164,230 @@ coef_model2 <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 
 ## Exercise 2
 
+Consider the following research context:
+
+An analyst has a dataset consisting of a continuous outcome variable (y), and a single continuous predictor variable (x). They are interested in generating the most predictive model they can of the form y=f(x)+λ∗R(f)
+, where f is a linear model. They have at their disposal the ability to adjust both λ and to include polynomials of X up to the 7th order. The analyst does not have access to any in-built cross-validation functions (for example, cv.glmnet()). Your task is to write a function that:
+
+Takes in an outcome y and explanatory variable x (both are continuous, and supplied as separate vectors)
+Identifies the optimal combination of both λ and f in a principled way
+Prints, as separate lines:
+The optimal model form
+The test loss of the optimal model
+Returns the final trained model
+Your answer should be a single code chunk which contains the function. If you make any notable choices while building this function, you may describe these under the code chunk.
+
+Notes: * Your answer will be assessed by running the function on unseen data, which conforms to the description above * Code comments should be used to clearly annotate your function, and to draw attention to any notable features of your implementation
+
 ```{r}
-mystery_function <- function(y, x){
-  #function form
-  # y = alpha + coefficient*x + lambda*R(f) 
-  
-  #Identify the optimal combination of both λ and f in a principled way
-  
-  #Prints, as separate lines:
-    # The optimal model form
-    # The test loss of the optimal model
-  
-  # Returns the final trained model
+ridgeLoss <- function(ytrue, yhat, coefficients, lambda) {
+  nll <- NLL(ytrue, yhat)
+  l2_penalty <- lambda*sum(coefficients^2)
+  return(nll + l2_penalty)
 }
 ```
 
+
 ```{r}
-# Set seed for reproducibility
-set.seed(123)
+#set lambda values to loop through
+lambdas <- c(0.0001, 0.001, 0.01, 0.1, 1, 10)
 
-# Generate a vector of independent variable (X) with 100 observations
-X <- rnorm(100)
+#set polynomial degrees to loop through
+poly_degrees <- seq(1, 7, by=1)
 
-# Generate the dependent variable (y) with a linear relationship to X, adding some random noise
-# Assuming the linear relationship is y = 2*X + 3 + error
-y <- 2*X + 3 + rnorm(100)
+#set the number of folds
+K <- 10
 
-# Display the first few elements of X and y
-head(cbind(X, y))
+optimal_model <- function(x,y){
+  # Initialize best lambda, degree, model and test loss to NULL to store optimal parameters and test loss
+  best_lambda <- NULL
+  best_degree <- NULL
+  best_model <- NULL
+  best_loss <- Inf
+  
+  #for each lambda value
+  for (lambdas in lambdas){
+    
+    #for each polynomial degree
+    for (degree in degrees){
+      #transform the x data to this particular polynomial
+      x_poly <- poly(x, degree)
+  
+      #assign each observation to a fold
+      fold_id <- sample(rep(1:K, each = nrow(X)/K))
+      #set the total loss to 0 for this loop
+      total_loss <- 0
+      
+      #for each fold
+      for (k in 1:K){
+        #assign the validation data for X
+        val_X <- X[fold_id == k,]
+        
+        #assign the training data for X
+        train_X <- X[fold_id != k,]
+  
+        #assign the validation data for y
+        val_y <- y[fold_id == k]
+        
+        #assign the training data for y
+        train_y <- y[fold_id != k]
+  
+        #create a model with this particular combination of polynomial and lambda using ridge regression
+        k_mod <- glmnet(train_X, train_y, family = "gaussian", lambda = lambda, alpha = 0)
+  
+        #make predictions with the model
+        yhat_k <- predict(k_mod, newx = as.matrix(val_X), type = "response")
+  
+        #calculate the loss
+        k_loss <- ridgeLoss(val_y, yhat_k, coef(k_mod)[-1], lambda)
+  
+        #if the loss is less than the best test loss
+        if (k_loss < best_loss){
+          #set the best loss as this value
+          best_loss <- k_loss
+          
+          #set the best degree to this degree
+          best_degree <- degree
+          
+          #set the best lambda to this lambda
+          best_lambda <- lambda
+          
+          #set the best model as this model
+          best_model <- k_mod
+        }
+      }
+      
+    }
+      
+    #set the model with all the data
+    best_model <- glmnet(poly(x, best_degree), 
+                         y, 
+                         family = "gaussian", 
+                         lambda = best_lambda, 
+                         alpha = 0)
+  
+    #Print the optimal model
+    cat("The best model is: ", best_model)
+  
+    #Print the test loss of the optimal model
+    cat("The loss of the optimal model is: ", best_loss)
+  
+    #return the model with the lowest loss
+    return(best_model)
+}
 
 ```
 
 
+
+```{r}
+find_optimal_model <- function(y, x) {
+    # Arguments:
+    # y (numeric vector): Vector of continuous outcome variable.
+    # x (numeric vector): Vector of continuous predictor variable.
+    
+    # Returns:
+    # final_model: Trained linear regression model with optimal parameters.
+    
+    # Initialize variables to store optimal parameters and test loss
+    best_lambda <- NULL
+    best_degree <- NULL
+    best_test_loss <- Inf
+    final_model <- NULL
+    
+    # Loop through lambda values
+    for (lambd in c(0.0001, 0.001, 0.01, 0.1, 1, 10)) {
+      #set fold id
+      #set total loss
+        
+        # Loop through polynomial degrees
+        for (degree in 1:7) {
+          
+            # Fit polynomial regression model with ridge regularization
+            model <- lm(y ~ x_poly + 0)  # + 0 to remove intercept
+            model <- lm(y ~ x_poly, lambda = lambd)  # ridge regularization
+            
+            # Calculate current error
+            yhat <- apply(X, 1, predict_row, coefficients = coefs)
+            loss_epoch <- ridgeLoss(y, yhat, coefs, lambda)
+            
+            # report the error to the user
+            message(
+              paste0(
+                "Iteration ", b ,"/",epochs," | Loss = ", round(loss_epoch,5)
+              )
+            )
+            
+            # Update best parameters if test loss improves
+            if (test_loss < best_test_loss) {
+                best_lambda <- lambd
+                best_degree <- degree
+                best_test_loss <- test_loss
+                final_model <- model
+        }
+        }
+      
+    }
+    
+    # Print optimal model form and test loss
+    
+    # Fit final model with optimal parameters
+    # final_model <- ...
+    
+    # Return final trained model
+    }
+}
+
+```
+
 ## Exercise 3
+
+We have provided you with a dataset called civil_wars.RData, which records for each country and every year, whether that country was engaged in a civil war. The data was taken from Kaufman et al’s (2019) replication materials, which focuses on the use of boosted decision trees:
+
+Kaufman AR, Kraft P, Sen M. Improving Supreme Court Forecasting Using Boosted Decision Trees. Political Analysis. 2019;27(3):381-387. doi:10.1017/pan.2018.59
+
+To read this dataset you need to call load(civil_wars.RData), which will load the data as a variable called civwars into your environment. When you view the data in R (i.e. View(civwars)), you will see the variable descriptions under the variable names. We have removed country names from the dataset intentionally, so that all variables are numerical, and imputed any missing values.
+
+Your task is to build a model to predict civil war. You should use the data however you see fit, and you may use any class of model we have considered (including any already covered in this assignment).
+
+Your answer should be a report of between 250-500 words that a) introduces the problem, b) summarises any decisions you made about training the model, and c) demonstrate your final trained model’s performance. You may use (well-formatted) charts to help illustrate your claims.
+
+Note: you do not need to submit the trained model object, and may use any R packages/functions in this task.
+
+The models we learned in class so far are KNN, Trees and LASSO and Ridge regression. KNN would not be good in this case because the model because it does not typically work well with data with high dimensions. Trees also would not work because they are rarely the best in terms of prediction. 
+
+Is LASSO or ridge better? In this case LASSO is the best model as assessed by a paper by Ward, Greenhill and Bakke Reference Ward, Greenhill and Bakke (2010) in which they state ..."when it comes to choosing a model that best predicts the occurrence of civil war, a very parsimonious model can often fare better than one that contains a relatively large number of statistically-significant variables."
 
 ```{r}
 load("civil_wars.RData")
 
 View(civwars)
+
+predict_civ_war <- function(){
+  # X = training data
+  # y = true outcomes
+  # l_rate = learning rate
+  # epochs = number of SGD iterations through X
+  # lambda = extent of L2 regularization
+  
+  #test different values of lambda
+  
+  # instantiate glmnet model
+  
+  #for all epochs
+    #sample rows in random order
+      #make row easier to handle
+      #predict row with coefficients
+      #
+}
+
+#Options:
+  #glmnet
+  #trees
+    #not the best predictive power
+  #knn
+    #not good on data with a lot of dimensions
+  #glm
 ```
 
 This document contains the necessary commands and layout to meet the formatting requirements for MY472. You should use the template.Rmd file as the basis for your own answers to the assigned exercises.
