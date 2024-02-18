@@ -11,7 +11,7 @@ library(glmnet)
 
 ## Exercise 1
 
-### Algorithm Differences
+#### Algorithm Differences
 
 `Train2()` differs from the `train` algorithm we considered in class in that it has an additional parameter `m` with the default set to 0.9. It also contains an additional vector `v` which has the same number of elements as coefficients in the model. These additional features turns this into a stochastic gradient descent with momentum algorithm. In these types of algorithms, the `v` vector stores the history of the magnitude of the parameter update equation for the kth coefficient which is done on the line `v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k]`. The `m` parameter controls how much weight previous updates have on the current update. In this case, a value of 0.9 means that previous updates have a strong influence on the current update. 
 
@@ -153,13 +153,13 @@ X <- genX(1000)
 y <- genY(X)
 ```
 
-### Error Behavior
+#### Error Behavior
 
 As shown in Figures 1 and 2, `train()` is quickly able to lower both the Mean squared error (MSE) and Negative Log Likelihood (NLL) very dramaically within the first 10 epochs, then tends to stay within a relatively small interval which helps us come to the conclusion of what the minimum values of these errors are. In showing this plot, `train()` shows us how SGD makes larger steps toward the minima when it is farther away and gradually takes smaller steps as we approach the ideal coefficients for our model. 
 
 Figures 3 and 4 show the behavior of the errors for `train2()` which is much more erratic than `train()`. This shows us that momentum may bypass the ideal points for the coefficients and ultimately lead to a longer time needed for training, or we can also say that momentum should be used with only certain kinds of data. 
 
-```{r, echo = TRUE}
+```{r}
 coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
 ```
 
@@ -167,7 +167,7 @@ coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
 coef_model2 <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 ```
 
-### General Constraints
+#### General Constraints
 
 In `train2()`, the amount of the momentum that contributes to the algorithm in each epoch is the same. If we vary how much momentum contributes to the next step, given how much loss was in the last epoch or weighing more recent updates to the parameter heavier than less recent ones, we can attain a more appropriate update size for the parameter. 
 
@@ -347,21 +347,12 @@ y3 <- sin(x3) + rnorm(length(x3), mean = 0, sd = 0.2)
 
 ## Exercise 3
 
-We have provided you with a dataset called civil_wars.RData, which records for each country and every year, whether that country was engaged in a civil war. The data was taken from Kaufman et al’s (2019) replication materials, which focuses on the use of boosted decision trees:
-
-Kaufman AR, Kraft P, Sen M. Improving Supreme Court Forecasting Using Boosted Decision Trees. Political Analysis. 2019;27(3):381-387. doi:10.1017/pan.2018.59
-
-You will see the variable descriptions under the variable names. We have removed country names from the dataset intentionally, so that all variables are numerical, and imputed any missing values.
-
-Your task is to build a model to predict civil war. You should use the data however you see fit, and you may use any class of model we have considered (including any already covered in this assignment).
-
 Your answer should be a report of between 250-500 words that a) introduces the problem, b) summarises any decisions you made about training the model, and c) demonstrate your final trained model’s performance. You may use (well-formatted) charts to help illustrate your claims.
 
-Note: you do not need to submit the trained model object, and may use any R packages/functions in this task.
+Why might we want to predict civil war? According to Hegre et.al (2019), the more the UN is willing to spend on peacekeeping, the greater conflict reducing effect with these researchers finding that in the  most ambitious scenario modeled in 2013, the UN could have reduced major world conflicts by 70% with the appropriate peace keeping allocations. Therefore, where to spend these resources given where we think civil war may happen becomes an essential question. This training model attempts to predict to civil war to bettwe inform decision w=on where these resources should go. 
 
-The models we learned in class so far are KNN, Trees and LASSO and Ridge regression. KNN would not be good in this case because the model because it does not typically work well with data with high dimensions. Trees also would not work because they are rarely the best in terms of prediction. 
+In class the models we learned so far are KNN, Trees and LASSO and Ridge regression. KNN would not be good in this case because the model has a high number of dimensions. Trees also would not work because they are rarely the best in terms of prediction. Therefore, in the choice between Ridge or LASSO regression I chose LASSO because as assessed by a paper by Ward, Greenhill and Bakke (2010) in which they state "when it comes to choosing a model that best predicts the occurrence of civil war, a very parsimonious model can often fare better than one that contains a relatively large number of statistically-significant variables."
 
-Is LASSO or ridge better? In this case LASSO is the best model as assessed by a paper by Ward, Greenhill and Bakke Reference Ward, Greenhill and Bakke (2010) in which they state ..."when it comes to choosing a model that best predicts the occurrence of civil war, a very parsimonious model can often fare better than one that contains a relatively large number of statistically-significant variables."
 
 ```{r}
 load("civil_wars.RData")
@@ -399,50 +390,13 @@ predict_civ_war <- function(civwar){
 prediction <- predict_civ_war(civwars)
 ```
 
-This document contains the necessary commands and layout to meet the formatting requirements for MY472. You should use the template.Rmd file as the basis for your own answers to the assigned exercises.
-
-## Formatting requirements
-
-For clarity, the formatting requirements for each assignment are:
-
-* You must write in **full sentences**, as you would in a report or academic piece of writing
-  
-  * If the exercise requires generating a table or figure, you should include at least one sentence introducing and explaining it. E.g. "Table 1 reports the cross-validation test scores for a grid search of $\lambda$ values in the LASSO model."
-
-* Unless stated otherwise, all code used to answer the exercises should be included as a code appendix at the end of the script. This formatting can be achieved by following the guidance in the template.Rmd file we provide on Moodle
-
-* All code should be annotated with comments, to help the marker understand what you have done
-
-* Your output should be replicable. Any result/table/figure that cannot be traced back to your code will not be marked
-
-## Example of in-line figures without code
-
-We achieve the formatting requirements in two-steps: 
-
-  1) In the `setup` chunk, add `knitr::opts_chunk$set(echo = FALSE)` so that code is not included (echoed) by default in code chunks; 
-  2) Add a specific code chunk at the end of the file to collect and print *all* the code in the Rmarkdown file. You can see this code at the bottom of this template. If you use this template for your assignments, do not delete the final code chunk!
-
-Below, we use a code chunk to generate random data and include a scatter plot in-line. The code used to generate this chart is only reported at the end of the document. 
-
-```{r plot_example}
-set.seed(89) # set a seed for R's psuedo-randomiser, for replicability.
-x <- rnorm(100) # randomly draw 100 obs from normal distribution, save as object
-y <- rnorm(100) 
-plot(x,y) # two-way scatterplot using R's default plotting
-```
-
-In specific instances, however, you may be directed to report your code in-line (or you may want to do this to illustrate a specific point). In these cases, we can override the default behaviour by adding the chunk option `echo = TRUE` to a specific R chunk. When `echo=TRUE`, your code is presented in-line with any output displayed afterwards. The same code will also be included in the appendix at the bottom of the document (which is fine).
-
-```{r echo_example, echo=TRUE}
-# {[language] [chunk_name], [chunk_options]}
-# here we use echo=TRUE to override our global options and make the chunk appear exactly here. 
-
-print("This code chunk is visible in this section.")
-```
-
 ## References
 
 Brownlee J. (2021, October 12). Gradient Descent With Momentum from Scratch. Machine Learning Mastery. https://machinelearningmastery.com/gradient-descent-with-momentum-from-scratch/
+
+Hegre, H., Hultman, L., & Nygård, H. M. (2019). Evaluating the conflict-reducing effect of UN peacekeeping operations. The Journal of Politics, 81(1), 215-232.
+
+Ward, M. D., Greenhill, B. D., & Bakke, K. M. (2010). The perils of policy by p-value: Predicting civil conflicts. Journal of peace research, 47(4), 363-375.
 
 ## Appendix: All code in this assignment
 
