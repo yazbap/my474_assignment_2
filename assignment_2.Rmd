@@ -6,35 +6,36 @@ output: html_document
 
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(echo = FALSE)
+library(glmnet)
 ```
 
 ## Exercise 1
 
-What is the difference between train and train 2?
+### Algorithm Differences
 
-- Train 2 has an additional parameter `m` with the default set to 0.9. It also contains an additional vector `v` which has the same number of elements as coefficients in the model. These additional features turns this into a stochastic gradient descent with momentum algorithm. In these types of algorithms, the `v` vector stores the history of the magnitude of the parameter update equation for the kth coefficient which is done on the line `v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k]`. The `m` parameter controls how much weight previous updates have on the current update. In this case, a value of 0.9 means that previous updates has a strong influence on the current update. 
-
-How might this affect the performance of the algorithm?
+`Train2()` differs from the `train` algorithm we considered in class in that it has an additional parameter `m` with the default set to 0.9. It also contains an additional vector `v` which has the same number of elements as coefficients in the model. These additional features turns this into a stochastic gradient descent with momentum algorithm. In these types of algorithms, the `v` vector stores the history of the magnitude of the parameter update equation for the kth coefficient which is done on the line `v[k] <- m*v[k] + l_rate*(yhat_i - y[i])*row_vec[k]`. The `m` parameter controls how much weight previous updates have on the current update. In this case, a value of 0.9 means that previous updates have a strong influence on the current update. 
 
 To understand why adding momentum may be necessary, we first have to understand potential issues that can come up with SGD. A problem with SGD is that the progression toward the minima can move in inappropriate directions depending on the points sampled during the search which can can slow down progress. Adding previous update values as a factor can increase or decrease the magnitude of the next step and guide its direction. This can result in fewer steps reaching the minima. Momentum is helpful in cases where:
 
-- the objective function has a lot of curvature meaning that the gradient may change a lot over small regions of the search space as the momentum will guide the algorithm with greater velocity toward the minima
+- The objective function has a lot of curvature meaning that the gradient may change a lot over small regions of the search space as the momentum will guide the algorithm with greater velocity toward the minima
 
-- the gradient has a high variance as the momentum will provide more context on where the algorithm should go
+- The gradient has a high variance, momentum will provide more context on where the algorithm should go
 
-- when the search space is flat or nearly flat as the momentum allows the search to progress in the same direction as before the flat spot and helpfully cross the flat region.
+- When the search space is flat or, in other words, has a zero gradient, it typically indicates a local minimum (or maximum) of the function. If the optimization algorithm relies solely on the gradient, it might get stuck in such regions, unable to make progress towards finding the global minimum. Momentum allows the search to progress in the same direction as before the flat spot and ideally cross the flat region.
 
-Demonstrate your argument by including a coded example, comparing this algorithm, and point to elements of the output that help illustrate your answer.
-
-As shown in the plots for train_1, the algorithm we made in class and train_2, the algorithm given in this assignment, the second has more erratic behavior, while the former has a smoother line around the final MSE and NLL.
-
-Critique the function more generally. What are some of the general constraints or limitations of the implementation? Are there any ways you could improve it further?
-
-General constraints
-
-- The amount of the momentum that contributes to the algorithm in each epoch is the same. if we vary how much momentum contributes to the next step, given how much loss was in the last epoch we can have a smoother line toward the appropriate next step.
+(Brownlee, 2021)
 
 ```{r train}
+MSE <- function(ytrue, yhat) {
+  return(mean((ytrue-yhat)^2))
+}
+
+NLL <- function(ytrue, yhat) {
+  return(-sum(log(
+    (yhat^ytrue)*((1-yhat)^(1-ytrue))
+  )))
+}
+
 # Define the train function
 train <- function(X, y, l_rate, epochs) {
   coefs <- rep(0, ncol(X))
@@ -69,8 +70,8 @@ train <- function(X, y, l_rate, epochs) {
   par(mfrow = c(1, 2))
   
   # Plot the MSE and NLL over epochs
-  plot(1:epochs, MSE_list, type = "l", xlab = "Epoch", ylab = "MSE", main = "Train_1 MSE over Epochs")
-  plot(1:epochs, NLL_list, type = "l", xlab = "Epoch", ylab = "NLL", main = "Train_1 NLL over Epochs")
+  plot(1:epochs, MSE_list, type = "l", xlab = "Epoch", ylab = "MSE", main = "Figure 1: train() MSE over Epochs")
+  plot(1:epochs, NLL_list, type = "l", xlab = "Epoch", ylab = "NLL", main = "Figure 2: train() NLL over Epochs")
   
   return(coefs)  # Output the final estimates
 }
@@ -117,8 +118,8 @@ train2 <- function(X, y, l_rate, m = 0.9, epochs) {
   par(mfrow = c(1, 2))
   
   # Plot the MSE and NLL over epochs
-  plot(1:epochs, MSE_list, type = "l", xlab = "Epoch", ylab = "MSE", main = "Train_2 MSE over Epochs")
-  plot(1:epochs, NLL_list, type = "l", xlab = "Epoch", ylab = "NLL", main = "Train_2 NLL over Epochs")
+  plot(1:epochs, MSE_list, type = "l", xlab = "Epoch", ylab = "MSE", main = "Figure 3: train2() MSE over Epochs")
+  plot(1:epochs, NLL_list, type = "l", xlab = "Epoch", ylab = "NLL", main = "Figure 4: train2() NLL over Epochs")
   
   return(coefs)  # Output the final estimates
 }
@@ -152,6 +153,11 @@ X <- genX(1000)
 y <- genY(X)
 ```
 
+### Error Behavior
+
+As shown in Figures 1 and 2, `train()` is quickly able to lower both the Mean squared error (MSE) and Negative Log Likelihood (NLL) very dramaically within the first 10 epochs, then tends to stay within a relatively small interval which helps us come to the conclusion of what the minimum values of these errors are. In showing this plot, `train()` shows us how SGD makes larger steps toward the minima when it is farther away and gradually takes smaller steps as we approach the ideal coefficients for our model. 
+
+Figures 3 and 4 show the behavior of the errors for `train2()` which is much more erratic than `train()`. This shows us that momentum may bypass the ideal points for the coefficients and ultimately lead to a longer time needed for training, or we can also say that momentum should be used with only certain kinds of data. 
 
 ```{r, echo = TRUE}
 coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
@@ -161,23 +167,13 @@ coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
 coef_model2 <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 ```
 
+### General Constraints
+
+In `train2()`, the amount of the momentum that contributes to the algorithm in each epoch is the same. If we vary how much momentum contributes to the next step, given how much loss was in the last epoch or weighing more recent updates to the parameter heavier than less recent ones, we can attain a more appropriate update size for the parameter. 
+
+Furthermore, momentum can increase the complexity and memory requirements of the optimization, as it adds an extra term and hyperparameter that need to be stored and updated.
 
 ## Exercise 2
-
-Consider the following research context:
-
-An analyst has a dataset consisting of a continuous outcome variable (y), and a single continuous predictor variable (x). They are interested in generating the most predictive model they can of the form y=f(x)+λ∗R(f)
-, where f is a linear model. They have at their disposal the ability to adjust both λ and to include polynomials of X up to the 7th order. The analyst does not have access to any in-built cross-validation functions (for example, cv.glmnet()). Your task is to write a function that:
-
-Takes in an outcome y and explanatory variable x (both are continuous, and supplied as separate vectors)
-Identifies the optimal combination of both λ and f in a principled way
-Prints, as separate lines:
-The optimal model form
-The test loss of the optimal model
-Returns the final trained model
-Your answer should be a single code chunk which contains the function. If you make any notable choices while building this function, you may describe these under the code chunk.
-
-Notes: * Your answer will be assessed by running the function on unseen data, which conforms to the description above * Code comments should be used to clearly annotate your function, and to draw attention to any notable features of your implementation
 
 ```{r}
 ridgeLoss <- function(ytrue, yhat, coefficients, lambda) {
@@ -185,10 +181,24 @@ ridgeLoss <- function(ytrue, yhat, coefficients, lambda) {
   l2_penalty <- lambda*sum(coefficients^2)
   return(nll + l2_penalty)
 }
+
+set.seed(89)
+
+genX <- function(n) {
+  return (rnorm(n,0,1))
+}
+
+genY <- function(X) {
+  Ylin <- 3*X + rnorm(length(X),0,0.5) 
+  return(Ylin)
+}
+
+X <- genX(1000)
+y <- genY(X)
 ```
 
 
-```{r}
+```{r echo = TRUE}
 #set lambda values to loop through
 lambdas <- c(0.0001, 0.001, 0.01, 0.1, 1, 10)
 
@@ -198,7 +208,7 @@ poly_degrees <- seq(1, 7, by=1)
 #set the number of folds
 K <- 10
 
-optimal_model <- function(x,y){
+train_optimal_model <- function(x,y){
   # Initialize best lambda, degree, model and test loss to NULL to store optimal parameters and test loss
   best_lambda <- NULL
   best_degree <- NULL
@@ -206,37 +216,52 @@ optimal_model <- function(x,y){
   best_loss <- Inf
   
   #for each lambda value
-  for (lambdas in lambdas){
+  for (lambda in lambdas){
     
     #for each polynomial degree
-    for (degree in degrees){
+    for (degree in poly_degrees){
       #transform the x data to this particular polynomial
       x_poly <- poly(x, degree)
   
       #assign each observation to a fold
-      fold_id <- sample(rep(1:K, each = nrow(X)/K))
+      fold_id <- sample(rep(1:K, each = length(x_poly)/K))
+      
       #set the total loss to 0 for this loop
       total_loss <- 0
       
       #for each fold
       for (k in 1:K){
         #assign the validation data for X
-        val_X <- X[fold_id == k,]
+        val_X <- x_poly[fold_id == k]
         
         #assign the training data for X
-        train_X <- X[fold_id != k,]
+        train_X <- x_poly[fold_id != k]
   
         #assign the validation data for y
         val_y <- y[fold_id == k]
         
         #assign the training data for y
         train_y <- y[fold_id != k]
+        
+        val_X <- val_X[!is.na(val_y)]
+        train_X <- train_X[!is.na(train_y)]
+        val_y <- val_y[!is.na(val_y)]
+        train_y <- train_y[!is.na(train_y)]
   
         #create a model with this particular combination of polynomial and lambda using ridge regression
-        k_mod <- glmnet(train_X, train_y, family = "gaussian", lambda = lambda, alpha = 0)
+        k_mod <- glmnet(cbind(0,train_X), train_y, family = "gaussian", lambda = lambda, alpha = 0)
+        
+        # Create a constant variable for the second variable
+        constant_value <- 0  # Adjust as needed
+        
+        # Repeat the constant value to match the length of val_X
+        constant_variable <- rep(constant_value, length(val_X))
+        
+        # Combine the constant variable with val_X
+        val_X_with_constant <- cbind(val_X, constant_variable)
   
         #make predictions with the model
-        yhat_k <- predict(k_mod, newx = as.matrix(val_X), type = "response")
+        yhat_k <- predict(k_mod, newx = as.matrix(val_X_with_constant), type = "response")
   
         #calculate the loss
         k_loss <- ridgeLoss(val_y, yhat_k, coef(k_mod)[-1], lambda)
@@ -258,87 +283,67 @@ optimal_model <- function(x,y){
       }
       
     }
+  }
       
     #set the model with all the data
-    best_model <- glmnet(poly(x, best_degree), 
+    best_model <- glmnet(cbind(poly(x, best_degree), 0), 
                          y, 
                          family = "gaussian", 
                          lambda = best_lambda, 
                          alpha = 0)
   
     #Print the optimal model
-    cat("The best model is: ", best_model)
+    cat("The best model is: ", "glmnet(x = poly(x, ", 
+        best_degree, "), y = y, family = gaussian, alpha = 0, lambda = ", 
+        best_lambda, ")", 
+        sep="" )
   
     #Print the test loss of the optimal model
-    cat("The loss of the optimal model is: ", best_loss)
+    cat("\nThe loss of the optimal model is: ", best_loss)
   
     #return the model with the lowest loss
     return(best_model)
 }
 
+optimal_model <- train_optimal_model(X, y)
+
 ```
-
-
 
 ```{r}
-find_optimal_model <- function(y, x) {
-    # Arguments:
-    # y (numeric vector): Vector of continuous outcome variable.
-    # x (numeric vector): Vector of continuous predictor variable.
-    
-    # Returns:
-    # final_model: Trained linear regression model with optimal parameters.
-    
-    # Initialize variables to store optimal parameters and test loss
-    best_lambda <- NULL
-    best_degree <- NULL
-    best_test_loss <- Inf
-    final_model <- NULL
-    
-    # Loop through lambda values
-    for (lambd in c(0.0001, 0.001, 0.01, 0.1, 1, 10)) {
-      #set fold id
-      #set total loss
-        
-        # Loop through polynomial degrees
-        for (degree in 1:7) {
-          
-            # Fit polynomial regression model with ridge regularization
-            model <- lm(y ~ x_poly + 0)  # + 0 to remove intercept
-            model <- lm(y ~ x_poly, lambda = lambd)  # ridge regularization
-            
-            # Calculate current error
-            yhat <- apply(X, 1, predict_row, coefficients = coefs)
-            loss_epoch <- ridgeLoss(y, yhat, coefs, lambda)
-            
-            # report the error to the user
-            message(
-              paste0(
-                "Iteration ", b ,"/",epochs," | Loss = ", round(loss_epoch,5)
-              )
-            )
-            
-            # Update best parameters if test loss improves
-            if (test_loss < best_test_loss) {
-                best_lambda <- lambd
-                best_degree <- degree
-                best_test_loss <- test_loss
-                final_model <- model
-        }
-        }
-      
-    }
-    
-    # Print optimal model form and test loss
-    
-    # Fit final model with optimal parameters
-    # final_model <- ...
-    
-    # Return final trained model
-    }
-}
+set.seed(123)
+x1 <- rnorm(100, mean = 10, sd = 2)
+y1 <- 2 * x1 + rnorm(100, mean = 0, sd = 2)
 
+x2 <- seq(-10, 10, by = 0.2)
+y2 <- x2^2 + rnorm(length(x2), mean = 0, sd = 5)
+
+x3 <- seq(0, 2 * pi, length.out = 100)
+y3 <- sin(x3) + rnorm(length(x3), mean = 0, sd = 0.2)
 ```
+
+```{r}
+#y_pred <- predict(optimal_model, newx = as.matrix(x1))
+
+#y_mean <- mean(y1)
+
+# Compute mean squared error (MSE)
+#mse <- mean((y1 - y_pred)^2)
+
+# Compute mean absolute error (MAE)
+#mae <- mean(abs(y1 - y_pred))
+
+# Compute R-squared
+#y_mean <- mean(y1)
+#ss_total <- sum((y1 - y_mean)^2)
+#ss_residual <- sum((y1 - y_pred)^2)
+#r_squared <- 1 - (ss_residual / ss_total)
+
+# Print the evaluation metrics
+#cat("Mean Squared Error (MSE): ", mse, "\n")
+#cat("Mean Absolute Error (MAE): ", mae, "\n")
+#cat("R-squared: ", r_squared, "\n")
+```
+
 
 ## Exercise 3
 
@@ -346,7 +351,7 @@ We have provided you with a dataset called civil_wars.RData, which records for e
 
 Kaufman AR, Kraft P, Sen M. Improving Supreme Court Forecasting Using Boosted Decision Trees. Political Analysis. 2019;27(3):381-387. doi:10.1017/pan.2018.59
 
-To read this dataset you need to call load(civil_wars.RData), which will load the data as a variable called civwars into your environment. When you view the data in R (i.e. View(civwars)), you will see the variable descriptions under the variable names. We have removed country names from the dataset intentionally, so that all variables are numerical, and imputed any missing values.
+You will see the variable descriptions under the variable names. We have removed country names from the dataset intentionally, so that all variables are numerical, and imputed any missing values.
 
 Your task is to build a model to predict civil war. You should use the data however you see fit, and you may use any class of model we have considered (including any already covered in this assignment).
 
@@ -361,33 +366,37 @@ Is LASSO or ridge better? In this case LASSO is the best model as assessed by a 
 ```{r}
 load("civil_wars.RData")
 
-View(civwars)
-
-predict_civ_war <- function(){
-  # X = training data
-  # y = true outcomes
-  # l_rate = learning rate
-  # epochs = number of SGD iterations through X
-  # lambda = extent of L2 regularization
+predict_civ_war <- function(civwar){
+  #set the training index
+  train_idx <- sample(1:nrow(civwar), 0.8*nrow(civwar))
   
-  #test different values of lambda
+  #set xtrain
+  Xtrain <- civwar[train_idx,]
+  #set x test
+  Xtest <- civwar[-train_idx,]
   
-  # instantiate glmnet model
+  #set y train
+  ytrain <- Xtrain$war
+  #set y test
+  ytest <- Xtest$war
   
-  #for all epochs
-    #sample rows in random order
-      #make row easier to handle
-      #predict row with coefficients
-      #
+  #remove same column from multiple data frames
+  Xtrain$ViolentCrimesPerPop <- Xtest$ViolentCrimesPerPop <- NULL
+  
+  # use cv.glmt to estimate the best value for lambda
+  lasso_cv <- cv.glmnet(as.matrix(Xtrain), ytrain, alpha = 1)
+  
+  #get the value of lambda
+  lambda_min <- lasso_cv$lambda.min
+  print(lambda_min)
+  
+  #train final model
+  final_mod <- glmnet(as.matrix(Xtrain), ytrain, alpha = 1, lambda = lambda_min)
+  
+  return(final_mod)
 }
 
-#Options:
-  #glmnet
-  #trees
-    #not the best predictive power
-  #knn
-    #not good on data with a lot of dimensions
-  #glm
+prediction <- predict_civ_war(civwars)
 ```
 
 This document contains the necessary commands and layout to meet the formatting requirements for MY472. You should use the template.Rmd file as the basis for your own answers to the assigned exercises.
@@ -430,6 +439,10 @@ In specific instances, however, you may be directed to report your code in-line 
 
 print("This code chunk is visible in this section.")
 ```
+
+## References
+
+Brownlee J. (2021, October 12). Gradient Descent With Momentum from Scratch. Machine Learning Mastery. https://machinelearningmastery.com/gradient-descent-with-momentum-from-scratch/
 
 ## Appendix: All code in this assignment
 
