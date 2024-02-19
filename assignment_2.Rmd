@@ -163,7 +163,7 @@ Figures 3 and 4 show the behavior of the errors for `train2()` which is much mor
 coef_model <- train(X = X, y = y, l_rate = 0.01, epochs = 50)
 ```
 
-```{r, echo = TRUE}
+```{r}
 coef_model2 <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 ```
 
@@ -346,8 +346,6 @@ y3 <- sin(x3) + rnorm(length(x3), mean = 0, sd = 0.2)
 
 
 ## Exercise 3
-
-Your answer should be a report of between 250-500 words that a) introduces the problem, b) summarises any decisions you made about training the model, and c) demonstrate your final trained model’s performance. You may use (well-formatted) charts to help illustrate your claims.
 
 Why might we want to predict civil war? According to Hegre et.al (2019), the more the UN is willing to spend on peacekeeping, the greater conflict reducing effect with these researchers finding that in the  most ambitious scenario modeled in 2013, the UN could have reduced major world conflicts by 70% with the appropriate peace keeping allocations. Therefore, where to spend these resources given where we think civil war may happen becomes an essential question. This training model attempts to predict to civil war to bettwe inform decision w=on where these resources should go. 
 
