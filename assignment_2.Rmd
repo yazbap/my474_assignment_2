@@ -5,8 +5,9 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE} 
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(glmnet)
+library(pROC)
 ```
 
 ## Exercise 1
@@ -25,7 +26,7 @@ To understand why adding momentum may be necessary, we first have to understand 
 
 (Brownlee, 2021)
 
-```{r train}
+```{r}
 MSE <- function(ytrue, yhat) {
   return(mean((ytrue-yhat)^2))
 }
@@ -35,7 +36,10 @@ NLL <- function(ytrue, yhat) {
     (yhat^ytrue)*((1-yhat)^(1-ytrue))
   )))
 }
+```
 
+
+```{r train}
 # Define the train function
 train <- function(X, y, l_rate, epochs) {
   coefs <- rep(0, ncol(X))
@@ -169,17 +173,33 @@ coef_model2 <- train2(X = X, y = y, l_rate = 0.01, m = 0.9, epochs = 50)
 
 #### General Constraints
 
-In `train2()`, the amount of the momentum that contributes to the algorithm in each epoch is the same. If we vary how much momentum contributes to the next step, given how much loss was in the last epoch or weighing more recent updates to the parameter heavier than less recent ones, we can attain a more appropriate update size for the parameter. 
+Unavoidable Constraints:
 
-Furthermore, momentum can increase the complexity and memory requirements of the optimization, as it adds an extra term and hyperparameter that need to be stored and updated.
+- The utilization of momentum in optimization processes unavoidably increases memory requirements. This arises from the introduction of an additional term and hyperparameter that necessitate storage and ongoing updates. Despite these inherent constraints, leveraging additional memory presents opportunities for potentially optimizing our approach more effectively.
+
+Algorithmic Improvements:
+
+- In `train2()`, the amount of the momentum that contributes to the algorithm in each epoch is the same. If we vary how much momentum contributes to the next step, given how much loss was in the last epoch or weighing more recent updates to the parameter heavier than less recent ones, we can attain a more appropriate update size for the parameter. 
+
+- Nesterov Momentum
+
+Regularization and Stability:
+
+Weight Decay: Adding a weight decay term to the optimization objective can help regularize the optimization process and prevent excessive oscillations or overshooting.
+
+Gradient Clipping: Limiting the magnitude of gradients during training can help stabilize the optimization process and prevent exploding gradients, which can be exacerbated by momentum. This is similar to the concept of LASSO or Rigde regression in which we limit the size coefficients may sum up to.
+
+Monitoring and Analysis:
+
+Monitoring Convergence: Regularly monitoring convergence metrics, such as training loss or validation accuracy, can help identify issues such as overshooting or stagnation early on. Adjustments to momentum-related parameters can then be made accordingly.
 
 ## Exercise 2
 
 ```{r}
 ridgeLoss <- function(ytrue, yhat, coefficients, lambda) {
-  nll <- NLL(ytrue, yhat)
+  mse <- MSE(ytrue, yhat)
   l2_penalty <- lambda*sum(coefficients^2)
-  return(nll + l2_penalty)
+  return(mse + l2_penalty)
 }
 
 set.seed(89)
@@ -188,8 +208,17 @@ genX <- function(n) {
   return (rnorm(n,0,1))
 }
 
+random_coefs <- runif(7, 0,1)
+
 genY <- function(X) {
-  Ylin <- 3*X + rnorm(length(X),0,0.5) 
+  Ylin <- random_coefs[1] * X +
+     random_coefs[2] * X^2 +
+     random_coefs[3] * X^3 +
+     random_coefs[4] * X^4 +
+     random_coefs[5] * X^5 +
+     random_coefs[6] * X^6 +
+     random_coefs[7] * X^7 +
+     rnorm(length(X), mean = 0, sd = 0.5) 
   return(Ylin)
 }
 
@@ -224,6 +253,7 @@ train_optimal_model <- function(x,y){
       x_poly <- poly(x, degree)
   
       #assign each observation to a fold
+      set.seed(123)
       fold_id <- sample(rep(1:K, each = length(x_poly)/K))
       
       #set the total loss to 0 for this loop
@@ -249,37 +279,28 @@ train_optimal_model <- function(x,y){
         train_y <- train_y[!is.na(train_y)]
   
         #create a model with this particular combination of polynomial and lambda using ridge regression
-        k_mod <- glmnet(cbind(0,train_X), train_y, family = "gaussian", lambda = lambda, alpha = 0)
-        
-        # Create a constant variable for the second variable
-        constant_value <- 0  # Adjust as needed
-        
-        # Repeat the constant value to match the length of val_X
-        constant_variable <- rep(constant_value, length(val_X))
-        
-        # Combine the constant variable with val_X
-        val_X_with_constant <- cbind(val_X, constant_variable)
+        k_mod <- glmnet(as.matrix(cbind(0,train_X)), train_y, family = "gaussian", lambda = lambda, alpha = 0)
   
         #make predictions with the model
-        yhat_k <- predict(k_mod, newx = as.matrix(val_X_with_constant), type = "response")
-  
+        yhat_k <- predict(k_mod, newx = as.matrix(cbind(0,val_X)), type = "response")
+        
         #calculate the loss
         k_loss <- ridgeLoss(val_y, yhat_k, coef(k_mod)[-1], lambda)
   
         #if the loss is less than the best test loss
-        if (k_loss < best_loss){
-          #set the best loss as this value
-          best_loss <- k_loss
-          
-          #set the best degree to this degree
-          best_degree <- degree
-          
-          #set the best lambda to this lambda
-          best_lambda <- lambda
-          
-          #set the best model as this model
-          best_model <- k_mod
-        }
+        if(k_loss < best_loss){
+            #set the best loss as this value
+            best_loss <- k_loss
+            
+            #set the best degree to this degree
+            best_degree <- degree
+            
+            #set the best lambda to this lambda
+            best_lambda <- lambda
+            
+            #set the best model as this model
+            best_model <- k_mod
+          }
       }
       
     }
@@ -309,6 +330,7 @@ optimal_model <- train_optimal_model(X, y)
 
 ```
 
+
 ```{r}
 set.seed(123)
 x1 <- rnorm(100, mean = 10, sd = 2)
@@ -322,70 +344,93 @@ y3 <- sin(x3) + rnorm(length(x3), mean = 0, sd = 0.2)
 ```
 
 ```{r}
-#y_pred <- predict(optimal_model, newx = as.matrix(x1))
+y_pred <- predict(optimal_model, newx = as.matrix(cbind(0,0,0,x1)))
 
-#y_mean <- mean(y1)
+y_mean <- mean(y1)
 
 # Compute mean squared error (MSE)
-#mse <- mean((y1 - y_pred)^2)
+mse <- mean((y1 - y_pred)^2)
 
 # Compute mean absolute error (MAE)
-#mae <- mean(abs(y1 - y_pred))
+mae <- mean(abs(y1 - y_pred))
 
 # Compute R-squared
-#y_mean <- mean(y1)
-#ss_total <- sum((y1 - y_mean)^2)
-#ss_residual <- sum((y1 - y_pred)^2)
-#r_squared <- 1 - (ss_residual / ss_total)
+y_mean <- mean(y1)
+ss_total <- sum((y1 - y_mean)^2)
+ss_residual <- sum((y1 - y_pred)^2)
+r_squared <- 1 - (ss_residual / ss_total)
 
 # Print the evaluation metrics
-#cat("Mean Squared Error (MSE): ", mse, "\n")
-#cat("Mean Absolute Error (MAE): ", mae, "\n")
-#cat("R-squared: ", r_squared, "\n")
+cat("Mean Squared Error (MSE): ", mse, "\n")
+cat("Mean Absolute Error (MAE): ", mae, "\n")
+cat("R-squared: ", r_squared, "\n")
 ```
+
 
 
 ## Exercise 3
 
-Why might we want to predict civil war? According to Hegre et.al (2019), the more the UN is willing to spend on peacekeeping, the greater conflict reducing effect with these researchers finding that in the  most ambitious scenario modeled in 2013, the UN could have reduced major world conflicts by 70% with the appropriate peace keeping allocations. Therefore, where to spend these resources given where we think civil war may happen becomes an essential question. This training model attempts to predict to civil war to bettwe inform decision w=on where these resources should go. 
+Predicting civil wars is of paramount importance due to its implications for global peacekeeping efforts. Research by Hegre et al. (2019) suggests that increased investment in UN peacekeeping efforts could significantly reduce major world conflicts. In their work in their most ambitious scenario where UN peacekeeping budgets and mandates were used in their most optimal way, they found that the UN could have transformed four to five conflicts from major conflict to minor conflict in 2013. This represents a 70% reduction in major conflicts that year. Therefore, effectively predicting where civil wars may occur becomes crucial in optimizing the allocation of peacekeeping resources.
 
-In class the models we learned so far are KNN, Trees and LASSO and Ridge regression. KNN would not be good in this case because the model has a high number of dimensions. Trees also would not work because they are rarely the best in terms of prediction. Therefore, in the choice between Ridge or LASSO regression I chose LASSO because as assessed by a paper by Ward, Greenhill and Bakke (2010) in which they state "when it comes to choosing a model that best predicts the occurrence of civil war, a very parsimonious model can often fare better than one that contains a relatively large number of statistically-significant variables."
+For this report, four models were under consideration, KNN, Trees, and LASSO and Ridge regression. KNN and Trees were found to not be suitable for predicting civil wars due to the high dimensionality of the model and their limitations in prediction accuracy, respectively. Consequently, the choice between Ridge and LASSO regression was more pertinent. In this work, LASSO regression was optend for in light of findings from Ward, Greenhill, and Bakke (2010), where they suggested that a parsimonious model, as facilitated by LASSO regression, often outperforms complex models in predicting civil war occurrences.
+
+In building the training model, 80% of the data was used for training while the rest was used for testing as per usual division conventions in machine learning.
+
+To assess the performance of the final trained model, a Receiver Operating Characteristic (ROC) curve was employed. The ROC curve provides insights into the trade-off between the true positive rate and false positive rate across different thresholds. A nearly right-angle shape of the curve indicates a low false positive rate and a high true positive rate, suggesting strong predictive performance of the model on unseen data. However, it's important to consider the context that very few civil wars occur in reality. Thus, while the model's performance appears promising, its effectiveness in practical scenarios with limited occurrences of civil wars warrants further examination.
 
 
 ```{r}
 load("civil_wars.RData")
 
+set.seed(123)
+
 predict_civ_war <- function(civwar){
-  #set the training index
-  train_idx <- sample(1:nrow(civwar), 0.8*nrow(civwar))
+  # Set the training index
+  train_idx <- sample(1:nrow(civwar), 0.8 * nrow(civwar))
   
-  #set xtrain
-  Xtrain <- civwar[train_idx,]
-  #set x test
-  Xtest <- civwar[-train_idx,]
+  # Set xtrain
+  Xtrain <- civwar[train_idx, ]
+  # Set x test
+  Xtest <- civwar[-train_idx, ]
   
-  #set y train
+  # Set y train
   ytrain <- Xtrain$war
-  #set y test
-  ytest <- Xtest$war
+  # Set y test as vector to create ROC curve
+  ytest <- as.vector(Xtest$war)
   
-  #remove same column from multiple data frames
-  Xtrain$ViolentCrimesPerPop <- Xtest$ViolentCrimesPerPop <- NULL
+  # Remove 'war' column from both training and test sets
+  Xtrain <- Xtrain[, -which(names(Xtrain) == "war")]
+  Xtest <- Xtest[, -which(names(Xtest) == "war")]
   
-  # use cv.glmt to estimate the best value for lambda
+  # Use cv.glmnet to estimate the best value for lambda
   lasso_cv <- cv.glmnet(as.matrix(Xtrain), ytrain, alpha = 1)
   
-  #get the value of lambda
+  # Get the value of lambda
   lambda_min <- lasso_cv$lambda.min
-  print(lambda_min)
   
-  #train final model
+  # Train final model
   final_mod <- glmnet(as.matrix(Xtrain), ytrain, alpha = 1, lambda = lambda_min)
+  
+  # Predict test outcomes
+  ypred <- predict(final_mod, newx = as.matrix(Xtest))
+  ypred <- as.vector(ypred) #set as vector for ROC curve
+  
+  # Calculate the MSE of test outcomes
+  test_loss <- mean((ytest - ypred)^2)
+  
+  # Calculate ROC curve
+  roc_data <- roc(ytest, ypred)
+  
+  # Plot ROC curve
+  plot.roc(roc_data, 
+       col = "blue", 
+       main = "ROC Curve for Civil War Data", 
+       lwd = 2)
   
   return(final_mod)
 }
 
-prediction <- predict_civ_war(civwars)
+model <- predict_civ_war(civwars)
 ```
 
 ## References
